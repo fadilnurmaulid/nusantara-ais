@@ -1,22 +1,38 @@
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(ROOT / "src"))
-
 import pandas as pd
 
-from nusantara_ais.features.engineer import build_features
-
 ROOT = Path(__file__).resolve().parents[1]
 
-path = ROOT / "data" / "processed" / "ais_indonesia_clean.parquet"
+sys.path.append(str(ROOT / "src"))
 
-df = pd.read_parquet(path)
+from nusantara_ais.features.engineer import build_features
+from nusantara_ais.features.normalize import normalize
+
+DATA_PATH = ROOT / "data" / "processed" / "ais_dataset_v1.parquet"
+
+print("Loading dataset...")
+
+df = pd.read_parquet(DATA_PATH)
+
+print(df.shape)
+
+print("Engineering features...")
 
 df = build_features(df)
+df = normalize(df)
 
-df.to_parquet(path, index=False)
-
-print(df.columns)
 print(df.shape)
+
+print("Saving...")
+
+df.to_parquet(
+    DATA_PATH,
+    index=False
+)
+
+print()
+
+print("Done")
+print(df.columns)
