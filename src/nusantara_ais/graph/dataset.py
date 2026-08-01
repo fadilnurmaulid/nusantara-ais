@@ -1,52 +1,123 @@
-"""
-PyTorch Geometric dataset wrapper.
+from pathlib import Path
 
-Wraps the list of per-snapshot `HeteroData` objects produced by
-`MaritimeGraphBuilder` in a `torch_geometric.data.Dataset`, enabling
-standard PyG `DataLoader` batching (heterogeneous graphs of different
-snapshots are batched by disjoint union, which is memory-efficient and the
-canonical PyG pattern).
+import torch
+from torch_geometric.data import HeteroData
 
-Split strategy
---------------
-Snapshots are split chronologically (NOT randomly): train = earliest
-`1 - val_split - test_split` fraction, val = next `val_split`, test = the
-final `test_split`. A random split would leak future spatial/behavioral
-context into training via the temporal_next and spatial_proximity edges of
-adjacent snapshots, inflating validation performance -- chronological
-splitting is the only leak-free choice for a temporally-snapshotted graph
-dataset and mirrors real deployment (train on the past, evaluate on the
-future).
-"""
-from __future__ import annotations
+ROOT = Path(__file__).resolve().parents[3]
 
-from typing import List, Tuple
+def to_tensor(df):
 
-from torch_geometric.data import Dataset, HeteroData
-
-from ..config import TrainingConfig
+    return torch.tensor(
+        df.values,
+        dtype=torch.float32
+    )
 
 
-class MaritimeSnapshotDataset(Dataset):
-    def __init__(self, snapshots: List[HeteroData]):
-        super().__init__()
-        self.snapshots = snapshots
+def edge_tensor(edge):
 
-    def len(self) -> int:
-        return len(self.snapshots)
-
-    def get(self, idx: int) -> HeteroData:
-        return self.snapshots[idx]
+    return torch.tensor(
+        edge[["source", "target"]].values.T,
+        dtype=torch.long
+    )
 
 
-def chronological_split(snapshots: List[HeteroData], train_cfg: TrainingConfig
-                         ) -> Tuple[MaritimeSnapshotDataset, MaritimeSnapshotDataset, MaritimeSnapshotDataset]:
-    n = len(snapshots)
-    n_test = max(1, int(n * train_cfg.test_split))
-    n_val = max(1, int(n * train_cfg.val_split))
-    n_train = max(1, n - n_val - n_test)
+def build_dataset(
 
-    train = snapshots[:n_train]
-    val = snapshots[n_train:n_train + n_val]
-    test = snapshots[n_train + n_val:]
-    return (MaritimeSnapshotDataset(train), MaritimeSnapshotDataset(val), MaritimeSnapshotDataset(test))
+    ais_nodes,
+    ais_x,
+
+    port_nodes,
+    trip_nodes,
+    protected_nodes,
+
+    next_edges,
+    port_edges,
+    trip_edges,
+    protected_edges
+
+):
+
+    data = HeteroData()
+
+    # ============================================
+    # AIS NODE
+    # ============================================
+
+    data["ais"].x = to_tensor(ais_x)
+
+    # ============================================
+    # PORT
+    # ============================================
+
+    data["port"].x = torch.ones(
+        (
+            len(port_nodes),
+            1
+        )
+    )
+
+    # ============================================
+
+    data["trip"].x = torch.tensor(
+
+        trip_nodes[
+            [
+                "duration",
+                "points",
+                "mean_speed",
+            ]
+        ].values,
+
+        dtype=torch.float32
+
+    )
+
+    # ============================================
+
+    data["protected"].x = torch.ones(
+        (
+            len(protected_nodes),
+            1
+        )
+    )
+
+    # ============================================
+    # EDGE
+    # ============================================
+
+    data[
+        "ais",
+        "next",
+        "ais"
+    ].edge_index = edge_tensor(next_edges)
+
+    data[
+        "ais",
+        "near",
+        "port"
+    ].edge_index = edge_tensor(port_edges)
+
+    data[
+        "ais",
+        "trip",
+        "trip"
+    ].edge_index = edge_tensor(trip_edges)
+
+    data[
+        "ais",
+        "protected",
+        "protected"
+    ].edge_index = edge_tensor(
+        protected_edges
+    )
+
+    return data
+
+def load_dataset():
+
+    data = torch.load(
+        ROOT / "data" / "processed" / "hetero_graph.pt",
+        weights_only=False,
+    )
+
+    return data
