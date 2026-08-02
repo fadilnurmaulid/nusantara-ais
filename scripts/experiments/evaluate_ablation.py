@@ -3,6 +3,7 @@ import sys
 
 import pandas as pd
 import torch
+import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT))
@@ -11,6 +12,15 @@ from src.nusantara_ais.models.hetgat import HetGATAutoEncoder
 
 DEVICE = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+GRAPH_DIR = ROOT / "data" / "processed" / "ablation"
+MODEL_DIR = ROOT / "data" / "model" / "ablation"
+RESULT_DIR = ROOT / "results"
+
+RESULT_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
 )
 
 variants = [
@@ -23,12 +33,16 @@ variants = [
 
 rows = []
 
+print("Device :", DEVICE)
+
 for name in variants:
 
-    print(f"\n{name}")
+    print("\n" + "=" * 50)
+    print(name)
+    print("=" * 50)
 
     graph = torch.load(
-        ROOT / "data" / "processed" / "ablation" / f"{name}.pt",
+        GRAPH_DIR / f"{name}.pt",
         weights_only=False,
     ).to(DEVICE)
 
@@ -42,30 +56,13 @@ for name in variants:
         dropout=0.2,
     ).to(DEVICE)
 
-    model.fit_normalizer(graph)
-
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=1e-3,
-        weight_decay=1e-5,
+    model.load_state_dict(
+        torch.load(
+            MODEL_DIR / f"{name}.pt",
+            map_location=DEVICE,
+            weights_only=False,
+        )
     )
-
-    for epoch in range(100):
-
-        model.train()
-
-        optimizer.zero_grad()
-
-        x_hat, z, loss = model(graph)
-
-        loss.backward()
-
-        optimizer.step()
-
-        if epoch % 10 == 0:
-            print(
-            f"{name} | Epoch {epoch:03d} | Loss {loss.item():6f}"
-            )
 
     model.eval()
 
@@ -76,32 +73,70 @@ for name in variants:
         score = model.reconstruction_error_raw(
             graph,
             x_hat,
-        )
+        ).cpu().numpy()
 
-    rows.append({
+    rows.append(
 
-        "variant": name,
+        {
 
-        "loss": float(loss),
+            "variant": name,
+            "loss": float(loss.item()),
+            "mean_score": float(score.mean()),
+            "std_score": float(score.std()),
+            "max_score": float(score.max()),
 
-        "mean_score": float(score.mean()),
+        }
 
-        "std_score": float(score.std()),
-
-        "max_score": float(score.max()),
-
-    })
+    )
 
 df = pd.DataFrame(rows)
 
+print("\n")
 print(df)
 
-save_path = ROOT / "results" / "ablation.csv"
+csv_path = RESULT_DIR / "ablation.csv"
 
 df.to_csv(
-    save_path,
+    csv_path,
     index=False,
 )
 
+# ==========================================
+# Plot
+# ==========================================
+
+plt.figure(figsize=(8,5))
+
+plt.bar(
+    df["variant"],
+    df["loss"],
+)
+
+for i, v in enumerate(df["loss"]):
+
+    plt.text(
+        i,
+        v + 0.002,
+        f"{v:.3f}",
+        ha="center",
+        fontsize=9,
+    )
+
+plt.ylabel("Reconstruction Loss")
+plt.xlabel("Ablation Variant")
+plt.title("HetGAT Ablation Study")
+
+plt.tight_layout()
+
+plot_path = RESULT_DIR / "ablation.png"
+
+plt.savefig(
+    plot_path,
+    dpi=300,
+)
+
+plt.close()
+
 print("\nSaved :")
-print(save_path)
+print(csv_path)
+print(plot_path)
