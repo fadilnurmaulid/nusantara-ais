@@ -11,6 +11,8 @@ class HetGATAutoEncoder(nn.Module):
     def __init__(
         self,
         metadata,
+        ais_in_channels,
+        trip_in_channels,
         hidden_channels=128,
         latent_channels=64,
         heads=4,
@@ -20,6 +22,8 @@ class HetGATAutoEncoder(nn.Module):
         super().__init__()
 
         self.dropout = dropout
+        self.ais_in_channels = ais_in_channels
+        self.trip_in_channels = trip_in_channels
 
         # ======================================================
         # INPUT NORMALIZATION (per node type, z-score)
@@ -38,11 +42,11 @@ class HetGATAutoEncoder(nn.Module):
         # features are used -- only how they are scaled internally
         # before the first Linear projection.
 
-        self.register_buffer("ais_mean", torch.zeros(28))
-        self.register_buffer("ais_std", torch.ones(28))
+        self.register_buffer("ais_mean", torch.zeros(self.ais_in_channels))
+        self.register_buffer("ais_std", torch.ones(self.ais_in_channels))
 
-        self.register_buffer("trip_mean", torch.zeros(3))
-        self.register_buffer("trip_std", torch.ones(3))
+        self.register_buffer("trip_mean", torch.zeros(self.trip_in_channels))
+        self.register_buffer("trip_std", torch.ones(self.trip_in_channels))
 
         self.register_buffer("_norm_fitted", torch.tensor(False))
 
@@ -50,11 +54,11 @@ class HetGATAutoEncoder(nn.Module):
         # INPUT PROJECTION
         # ======================================================
 
-        self.ais_proj = nn.Linear(28, hidden_channels)
+        self.ais_proj = nn.Linear(self.ais_in_channels, hidden_channels)
 
         self.port_proj = nn.Linear(1, hidden_channels)
 
-        self.trip_proj = nn.Linear(3, hidden_channels)
+        self.trip_proj = nn.Linear(self.trip_in_channels, hidden_channels)
 
         self.protected_proj = nn.Linear(
             1,
@@ -200,7 +204,7 @@ class HetGATAutoEncoder(nn.Module):
 
             nn.Linear(
                 hidden_channels,
-                28,
+                self.ais_in_channels,
             ),
 
         )

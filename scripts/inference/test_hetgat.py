@@ -37,6 +37,8 @@ print("\nLoading trained HetGAT model...")
 
 model = HetGATAutoEncoder(
     metadata=data.metadata(),
+    ais_in_channels=data["ais"].num_features,
+    trip_in_channels=data["trip"].num_features,
     hidden_channels=128,
     latent_channels=64,
     heads=4,
