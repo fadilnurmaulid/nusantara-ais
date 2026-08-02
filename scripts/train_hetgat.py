@@ -39,6 +39,12 @@ model = HetGATAutoEncoder(
     dropout=0.2,
 ).to(device)
 
+# Fit input normalization statistics (mean/std per feature) once, from
+# the training graph. Raw AIS/trip features in hetero_graph.pt are not
+# normalized (e.g. distances in meters, trip duration in seconds), so
+# skipping this step causes the reconstruction loss to explode.
+model.fit_normalizer(data)
+
 optimizer = torch.optim.Adam(
     model.parameters(),
     lr=1e-3,
