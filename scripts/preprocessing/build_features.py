@@ -9,6 +9,7 @@ sys.path.append(str(ROOT / "src"))
 
 from nusantara_ais.features.engineer import build_features
 from nusantara_ais.features.normalize import normalize
+from nusantara_ais.features.reliability import compute_ari
 
 DATA_PATH = ROOT / "data" / "processed" / "ais_dataset_v1.parquet"
 
@@ -21,6 +22,7 @@ print(df.shape)
 print("Engineering features...")
 
 df = build_features(df)
+df = compute_ari(df)
 df = normalize(df)
 
 print(df.shape)

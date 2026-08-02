@@ -28,6 +28,7 @@ AIS_FEATURES = [
     "trip_length",
     "gps_gap",
     "missing_course",
+    "ari",
     "is_weekend",
 ]
 
